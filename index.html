@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Simulador Foso TZ20</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: pupitre de sala de control — mímico del foso a la izquierda, mando y alarmas a la derecha, tendencia abajo */
+:root{
+  --bg:#e9ecee; --panel:#f7f8f8; --ink:#1b2328; --muted:#5a666e; --line:#c3cacf;
+  --steel:#8d989f; --water:#2f7fb8; --water2:#5aa3d6; --run:#1f8a4c; --alarm:#c8352b; --amber:#c98a12; --accent:#24566f;
+  --f-disp:"Barlow Condensed","Arial Narrow",sans-serif; --f-body:"IBM Plex Sans",system-ui,sans-serif; --f-mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#151b1f; --panel:#1e262b; --ink:#e3e8ea; --muted:#94a1a8; --line:#36434a;
+  --steel:#6c7a82; --water:#3b8fcc; --water2:#6bb3e6; --run:#3fbf74; --alarm:#ef5a4f; --amber:#e3a531; --accent:#7fb6d1; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#151b1f; --panel:#1e262b; --ink:#e3e8ea; --muted:#94a1a8; --line:#36434a;
+  --steel:#6c7a82; --water:#3b8fcc; --water2:#6bb3e6; --run:#3fbf74; --alarm:#ef5a4f; --amber:#e3a531; --accent:#7fb6d1; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.5}
+.wrap{max-width:1180px;margin:0 auto;padding-block:20px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:16px}
+header h1{font-family:var(--f-disp);font-weight:700;font-size:30px;letter-spacing:.02em;margin:0;text-wrap:balance}
+header p{margin:4px 0 0;color:var(--muted);max-width:72ch}
+.tag{font-family:var(--f-mono);font-size:12px;background:var(--panel);border:1px solid var(--line);padding:1px 6px;border-radius:3px;white-space:nowrap}
+.grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:16px}
+@media (max-width:820px){.grid{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px;min-width:0}
+.card h2{font-family:var(--f-disp);font-weight:600;font-size:15px;letter-spacing:.08em;text-transform:uppercase;margin:0 0 10px;color:var(--muted)}
+svg text{font-family:var(--f-mono)}
+.readouts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px}
+@media (max-width:520px){.readouts{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.ro{border:1px solid var(--line);border-radius:4px;padding:6px 8px;background:var(--bg)}
+.ro b{display:block;font-family:var(--f-mono);font-size:18px;font-weight:500;font-variant-numeric:tabular-nums}
+.ro span{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.ctl{display:grid;gap:12px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+label.f{display:grid;gap:3px;font-size:12px;color:var(--muted);flex:1 1 140px;min-width:0}
+input[type=range]{width:100%}
+input[type=number],select{font-family:var(--f-mono);font-size:13px;padding:5px 6px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--ink);width:100%}
+button{font-family:var(--f-disp);font-weight:600;font-size:15px;letter-spacing:.04em;padding:7px 12px;border-radius:4px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button:hover:not(:disabled){border-color:var(--accent)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.primary{background:var(--accent);color:var(--panel);border-color:var(--accent)}
+button.go{border-color:var(--run);color:var(--run)}
+button.stop{border-color:var(--alarm);color:var(--alarm)}
+.ann{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.lamp{display:flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:4px;padding:6px 8px;font-size:12px;background:var(--bg)}
+.lamp i{width:12px;height:12px;border-radius:50%;background:var(--line);flex:none}
+.lamp.on.red i{background:var(--alarm);box-shadow:0 0 8px var(--alarm)}
+.lamp.on.red.blink i{animation:bl .6s steps(2) infinite}
+.lamp.on.green i{background:var(--run);box-shadow:0 0 8px var(--run)}
+.lamp.on.amber i{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+@keyframes bl{50%{opacity:.15}}
+.log{font-family:var(--f-mono);font-size:12px;max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:4px;background:var(--bg);padding:6px 8px}
+.log div{padding:2px 0;border-bottom:1px dashed var(--line)}
+.log .t{color:var(--muted);margin-right:6px}
+.log .a{color:var(--alarm)} .log .g{color:var(--run)} .log .w{color:var(--amber)}
+.step{font-size:13px;border-left:3px solid var(--accent);padding:6px 10px;background:var(--bg)}
+canvas{width:100%;height:200px;display:block}
+.note{font-size:12px;color:var(--muted)}
+.chk{display:flex;gap:6px;align-items:center;font-size:13px}
+@media (prefers-reduced-motion:reduce){.lamp.on.red.blink i{animation:none}}
+</style>
+
+<style>body{margin:0;font-size:14px}[hidden]{display:none!important}</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Foso TZ20 · Edificio del Reactor</h1>
+  <p>Simulación del sumidero D₂O–H₂O con bomba <span class="tag">TZ20D002</span> y niveles <span class="tag">TZ20L003</span> (alto) y <span class="tag">TZ20L002</span> (bajo), según la lógica del MdO S.1.10. Actuación de niveles: L003 a 660 mm y L002 a 310 mm, en un foso de 1800 mm (datos de planta). El área del foso y el caudal de la bomba son <b>supuestos editables</b>.</p>
+</header>
+
+<div class="grid">
+  <section class="card">
+    <h2>Mímico</h2>
+    <svg id="mimic" viewBox="0 0 640 400" role="img" aria-label="Esquema del foso TZ20 con bomba y destinos">
+      <!-- piso -->
+      <rect x="0" y="70" width="640" height="6" fill="var(--steel)"/>
+      <text x="8" y="62" font-size="11" fill="var(--muted)">±0.00 PISO RECINTO</text>
+      <!-- entrada drenajes -->
+      <path d="M60 30 V110" stroke="var(--steel)" stroke-width="6" fill="none"/>
+      <text x="70" y="40" font-size="11" fill="var(--muted)">DRENAJES / FUGAS</text>
+      <g id="drips"></g>
+      <!-- foso -->
+      <rect x="30" y="76" width="200" height="300" fill="var(--bg)" stroke="var(--steel)" stroke-width="4"/>
+      <clipPath id="pit"><rect x="32" y="76" width="196" height="298"/></clipPath>
+      <g clip-path="url(#pit)">
+        <rect id="water" x="32" y="374" width="196" height="0" fill="var(--water)" opacity=".85"/>
+        <path id="wave" d="" fill="var(--water2)" opacity=".6"/>
+      </g>
+      <!-- escala -->
+      <g id="scale"></g>
+      <!-- sensores -->
+      <g id="sensL003"><line x1="215" x2="230" stroke="var(--alarm)" stroke-width="3"/><text x="238" font-size="12" fill="var(--ink)">L003</text></g>
+      <g id="sensL002"><line x1="215" x2="230" stroke="var(--amber)" stroke-width="3"/><text x="238" font-size="12" fill="var(--ink)">L002</text></g>
+      <!-- succión bomba -->
+      <path d="M160 360 V100 H300" stroke="var(--steel)" stroke-width="5" fill="none"/>
+      <circle cx="160" cy="362" r="5" fill="var(--steel)"/>
+      <!-- bomba -->
+      <g id="pump" transform="translate(320,100)">
+        <circle r="22" fill="var(--panel)" stroke="var(--ink)" stroke-width="2.5" id="pumpBody"/>
+        <g id="rotor"><path d="M-10 -12 L14 0 L-10 12 Z" fill="var(--ink)" id="pumpTri"/></g>
+      </g>
+      <text x="296" y="140" font-size="12" fill="var(--ink)">TZ20D002</text>
+      <text x="296" y="154" font-size="10" fill="var(--muted)" id="flangeTxt">brida ciega: colocada</text>
+      <!-- impulsión -->
+      <path id="pDis" d="M342 100 H420" stroke="var(--steel)" stroke-width="5" fill="none"/>
+      <!-- recirculación -->
+      <path id="pRec" d="M420 100 V40 H120 V100" stroke="var(--steel)" stroke-width="4" fill="none" stroke-dasharray="0"/>
+      <rect x="250" y="32" width="16" height="16" fill="var(--panel)" stroke="var(--ink)" id="vRec"/>
+      <text x="240" y="26" font-size="10" fill="var(--muted)">TZ21S03 recirc.</text>
+      <rect x="425" y="160" width="14" height="14" fill="var(--panel)" stroke="var(--ink)"/>
+      <path d="M420 100 V360" stroke="var(--steel)" stroke-width="5" fill="none" id="pMain"/>
+      <text x="444" y="171" font-size="10" fill="var(--muted)">TZ21S04 muestra</text>
+      <!-- destinos -->
+      <path id="pTY" d="M420 240 H600" stroke="var(--steel)" stroke-width="5" fill="none"/>
+      <path id="pTR7" d="M420 300 H600" stroke="var(--steel)" stroke-width="5" fill="none"/>
+      <path id="pTR1" d="M420 360 H600" stroke="var(--steel)" stroke-width="5" fill="none"/>
+      <text x="470" y="232" font-size="11" fill="var(--ink)">→ TY45B01 (D₂O ≥ 2 %)</text>
+      <text x="470" y="292" font-size="11" fill="var(--ink)">→ TR-7 (trazas–2 %)</text>
+      <text x="470" y="352" font-size="11" fill="var(--ink)">→ TR-1 (trazas)</text>
+    </svg>
+    <div class="readouts">
+      <div class="ro"><span>Nivel</span><b id="roLvl">—</b></div>
+      <div class="ro"><span>Volumen</span><b id="roVol">—</b></div>
+      <div class="ro"><span>Entrada</span><b id="roIn">—</b></div>
+      <div class="ro"><span>Tiempo sim.</span><b id="roT">—</b></div>
+    </div>
+  </section>
+
+  <section class="card ctl">
+    <h2>Pupitre</h2>
+    <div class="step" id="stepTxt">Llenando el foso por drenajes del recinto.</div>
+    <div class="ann">
+      <div class="lamp" id="lmpHi"><i></i>L003 alto nivel</div>
+      <div class="lamp" id="lmpLo"><i></i>L002 bajo nivel</div>
+      <div class="lamp" id="lmpRun"><i></i>D002 en marcha</div>
+      <div class="lamp" id="lmpRec"><i></i>Recirculando</div>
+    </div>
+    <div class="row">
+      <button class="primary" id="btnDemo">▶ Secuencia automática</button>
+      <button id="btnPause">Pausa</button>
+      <button id="btnReset">Reiniciar</button>
+      <button id="btnAck" class="stop" disabled>Reconocer alarma</button>
+    </div>
+    <div class="row">
+      <label class="chk"><input type="checkbox" id="flange"> Brida ciega retirada</label>
+    </div>
+    <div class="row">
+      <button class="go" id="btnRec">Recircular</button>
+      <button id="btnSample" disabled>Tomar muestra</button>
+      <button class="go" id="btnDis" disabled>Descargar</button>
+      <button class="stop" id="btnStop">Parar bomba</button>
+    </div>
+    <div class="row">
+      <label class="f">Resultado de laboratorio (D₂O)
+        <select id="conc"><option value="TY">≥ 2 % → TY45B01</option><option value="TR7">trazas – 2 % → TR-7</option><option value="TR1" selected>trazas → TR-1</option></select>
+      </label>
+      <label class="f">Velocidad
+        <select id="speed"><option value="1">x1 (real)</option><option value="10">x10</option><option value="30">x30</option><option value="60" selected>x60</option></select>
+      </label>
+    </div>
+    <label class="f">Caudal de entrada al foso: <b id="inVal"></b>
+      <input type="range" id="qin" min="0" max="200" step="5" value="60">
+    </label>
+    <details>
+      <summary class="note">Ajustes y datos del foso</summary>
+      <div class="row" style="margin-top:8px">
+        <label class="f">L003 alto nivel [mm] (dato planta)<input type="number" id="spHi" value="660"></label>
+        <label class="f">L002 bajo nivel [mm] (dato planta)<input type="number" id="spLo" value="310"></label>
+        <label class="f">Profundidad foso [mm] (dato planta)<input type="number" id="depth" value="1800"></label>
+        <label class="f">Área del foso [m²]<input type="number" id="area" value="2" step="0.1"></label>
+        <label class="f">Caudal bomba [l/min]<input type="number" id="qp" value="250"></label>
+        <label class="f">Histéresis [mm]<input type="number" id="hys" value="20"></label>
+      </div>
+    </details>
+  </section>
+</div>
+
+<section class="card">
+  <h2>Tendencia de nivel</h2>
+  <canvas id="trend" aria-label="Tendencia del nivel del foso"></canvas>
+</section>
+
+<section class="card">
+  <h2>Registro de eventos</h2>
+  <div class="log" id="log"></div>
+  <p class="note">Lógica según MdO S.1.10 (Rev. 5): en los sumideros de D₂O–H₂O el alto nivel da aviso; tras recircular y tomar muestra se elige el destino por concentración de D₂O; la bomba para automáticamente por bajo nivel. Antes de arrancar TZ20D001/D002 se retira la brida ciega.</p>
+</section>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const S={lvl:450,t:0,pump:'off',dest:null,hiAl:false,hiAck:false,loSt:false,recT:0,sampled:false,paused:false,demo:false,demoWait:0,hist:[]};
+const P=()=>({hi:+$('spHi').value,lo:+$('spLo').value,depth:+$('depth').value,area:+$('area').value,qp:+$('qp').value,hys:+$('hys').value,qin:+$('qin').value,speed:+$('speed').value});
+const fmtT=s=>{s=Math.floor(s);const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(x).padStart(2,'0')}`};
+function log(msg,c=''){const d=document.createElement('div');d.innerHTML=`<span class="t">${fmtT(S.t)}</span><span class="${c}">${msg}</span>`;$('log').prepend(d)}
+function step(t){$('stepTxt').textContent=t}
+const destName={TY:'TY45B01',TR7:'TR-7',TR1:'TR-1'};
+
+function startRec(){const p=P();
+  if(!$('flange').checked){log('Arranque bloqueado: falta retirar la brida ciega de TZ20D002','w');return}
+  if(S.lvl<=p.lo){log('Arranque bloqueado: TZ20L002 bajo nivel activo','w');return}
+  S.pump='rec';S.recT=0;S.sampled=false;log('TZ20D002 en marcha · recirculación por TZ21S03','g');step('Recirculando para homogeneizar el contenido antes de muestrear (≥ 1 min).')}
+function sample(){S.sampled=true;S.dest=$('conc').value;log(`Muestra por TZ21S04 → laboratorio: destino ${destName[S.dest]}`,'');step(`Resultado de laboratorio recibido. Alinear impulsión a ${destName[S.dest]} y descargar.`)}
+function discharge(){if(!S.sampled){log('Primero tomar muestra para definir el destino','w');return}
+  S.pump='dis';log(`Descarga a ${destName[S.dest]} · TZ21S03 cerrada`,'g');step(`Descargando a ${destName[S.dest]}. La bomba parará sola al actuar TZ20L002.`)}
+function stopPump(why,cls='g'){if(S.pump==='off')return;S.pump='off';log(why,cls)}
+
+$('btnRec').onclick=startRec;$('btnSample').onclick=sample;$('btnDis').onclick=discharge;
+$('btnStop').onclick=()=>stopPump('TZ20D002 parada manual','w');
+$('btnAck').onclick=()=>{S.hiAck=true;log('Alarma TZ20L003 reconocida en sala de control')};
+$('btnPause').onclick=()=>{S.paused=!S.paused;$('btnPause').textContent=S.paused?'Continuar':'Pausa'};
+$('btnReset').onclick=()=>{Object.assign(S,{lvl:450,t:0,pump:'off',dest:null,hiAl:false,hiAck:false,loSt:false,recT:0,sampled:false,demo:false,hist:[]});$('flange').checked=false;$('log').innerHTML='';$('btnDemo').textContent='▶ Secuencia automática';step('Llenando el foso por drenajes del recinto.');log('Simulación reiniciada')};
+$('btnDemo').onclick=()=>{S.demo=!S.demo;$('btnDemo').textContent=S.demo?'■ Detener secuencia':'▶ Secuencia automática';if(S.demo){S.demoWait=0;log('Secuencia automática iniciada (operador simulado)')}};
+$('flange').onchange=e=>{if(!e.target.checked&&S.pump!=='off')stopPump('TZ20D002 parada: brida ciega repuesta','w');log(e.target.checked?'Brida ciega retirada':'Brida ciega colocada')};
+
+function demoOp(dt){const p=P();if(!S.demo)return;S.demoWait-=dt;if(S.demoWait>0)return;
+  if(S.hiAl&&!S.hiAck){S.hiAck=true;log('Alarma TZ20L003 reconocida en sala de control');S.demoWait=30;return}
+  if(S.hiAl&&S.pump==='off'&&!$('flange').checked){$('flange').checked=true;log('Brida ciega retirada');S.demoWait=30;return}
+  if(S.hiAl&&S.pump==='off'&&$('flange').checked&&!S.sampled){startRec();S.demoWait=70;return}
+  if(S.pump==='rec'&&!S.sampled&&S.recT>=60){sample();S.demoWait=40;return}
+  if(S.pump==='rec'&&S.sampled){discharge();return}
+  if(S.pump==='off'&&S.sampled&&S.loSt){$('flange').checked=false;log('Brida ciega colocada');S.sampled=false;S.dest=null;step('Foso vacío hasta L002. Vuelve a llenarse.')}}
+
+function tick(dt){const p=P();
+  const qin=p.qin/60; let qout=0;
+  if(S.pump==='dis')qout=p.qp/60;
+  if(S.pump==='rec')S.recT+=dt;
+  S.lvl+= (qin-qout)*dt/p.area; S.lvl=Math.max(0,Math.min(p.depth,S.lvl));
+  // L003 alto nivel
+  if(!S.hiAl&&S.lvl>=p.hi){S.hiAl=true;S.hiAck=false;log('TZ20L003 ALTO NIVEL · aviso en sala de control','a');step('Alto nivel: reconocer, retirar brida ciega y recircular para muestrear.')}
+  if(S.hiAl&&S.lvl<p.hi-p.hys){S.hiAl=false;log('TZ20L003 normalizado')}
+  // L002 bajo nivel
+  if(!S.loSt&&S.lvl<=p.lo){S.loSt=true;log('TZ20L002 BAJO NIVEL actuado','w');if(S.pump!=='off'){stopPump('TZ20D002 PARADA AUTOMÁTICA por TZ20L002','g');step('Parada automática por bajo nivel. Reponer brida ciega.')}}
+  if(S.loSt&&S.lvl>p.lo+p.hys){S.loSt=false;log('TZ20L002 normalizado')}
+  if(S.lvl>=p.depth&&!S.over){S.over=true;log('Foso REBALSANDO al recinto','a')} if(S.lvl<p.depth-50)S.over=false;
+  demoOp(dt);
+  S.t+=dt; S.hist.push([S.t,S.lvl]); const lim=S.t-2400; while(S.hist.length&&S.hist[0][0]<lim)S.hist.shift();
+}
+
+// ---- dibujo
+const Y0=374,H=298;
+function yOf(mm){const p=P();return Y0-mm/p.depth*H}
+function drawScale(){const p=P();let s='';for(let mm=0;mm<=p.depth;mm+=300){const y=yOf(mm);s+=`<line x1="22" x2="30" y1="${y}" y2="${y}" stroke="var(--muted)"/><text x="18" y="${y+4}" font-size="9" text-anchor="end" fill="var(--muted)">${mm}</text>`}$('scale').innerHTML=s;
+  [['sensL003',p.hi],['sensL002',p.lo]].forEach(([id,v])=>{const g=$(id),y=yOf(v);g.querySelector('line').setAttribute('y1',y);g.querySelector('line').setAttribute('y2',y);g.querySelector('text').setAttribute('y',y+4)})}
+let ang=0,phase=0;
+function draw(dt){const p=P();const y=yOf(S.lvl);
+  $('water').setAttribute('y',y);$('water').setAttribute('height',Y0-y);
+  phase+=dt*3;let d=`M32 ${y}`;for(let x=32;x<=228;x+=7)d+=` L${x} ${y+Math.sin(x/12+phase)*2.5}`;d+=` L228 ${y+6} L32 ${y+6}Z`;$('wave').setAttribute('d',d);
+  const run=S.pump!=='off';ang+=run?dt*720:0;$('rotor').setAttribute('transform',`rotate(${ang%360})`);
+  $('pumpBody').setAttribute('fill',run?'var(--run)':'var(--panel)');$('pumpTri').setAttribute('fill',run?'var(--panel)':'var(--ink)');
+  $('flangeTxt').textContent='brida ciega: '+($('flange').checked?'retirada':'colocada');
+  const W='var(--water)',G='var(--steel)';
+  $('pRec').setAttribute('stroke',S.pump==='rec'?W:G);$('vRec').setAttribute('fill',S.pump==='rec'?'var(--run)':'var(--panel)');
+  $('pDis').setAttribute('stroke',run?W:G);$('pMain').setAttribute('stroke',S.pump==='dis'?W:G);
+  $('pTY').setAttribute('stroke',S.pump==='dis'&&S.dest==='TY'?W:G);
+  $('pTR7').setAttribute('stroke',S.pump==='dis'&&S.dest==='TR7'?W:G);
+  $('pTR1').setAttribute('stroke',S.pump==='dis'&&S.dest==='TR1'?W:G);
+  // goteo
+  const n=Math.round(p.qin/40);let g='';for(let i=0;i<n;i++){const yy=110+((phase*30+i*37)%Math.max(10,y-110));g+=`<circle cx="60" cy="${yy}" r="3" fill="var(--water2)"/>`}$('drips').innerHTML=g;
+  // lámparas
+  $('lmpHi').className='lamp red'+(S.hiAl?' on':'')+(S.hiAl&&!S.hiAck?' blink':'');
+  $('lmpLo').className='lamp amber'+(S.loSt?' on':'');
+  $('lmpRun').className='lamp green'+(run?' on':'');
+  $('lmpRec').className='lamp green'+(S.pump==='rec'?' on':'');
+  $('btnAck').disabled=!(S.hiAl&&!S.hiAck);
+  $('btnSample').disabled=!(S.pump==='rec'&&S.recT>=60&&!S.sampled);
+  $('btnDis').disabled=!(S.pump==='rec'&&S.sampled);
+  $('btnRec').disabled=S.pump!=='off';$('btnStop').disabled=S.pump==='off';
+  $('roLvl').textContent=Math.round(S.lvl)+' mm';$('roVol').textContent=(S.lvl/1000*p.area).toFixed(2)+' m³';
+  $('roIn').textContent=p.qin+' l/min';$('roT').textContent=fmtT(S.t);$('inVal').textContent=p.qin+' l/min';
+  drawTrend();
+}
+function drawTrend(){const c=$('trend'),r=c.getBoundingClientRect(),dpr=devicePixelRatio||1;
+  if(c.width!==Math.round(r.width*dpr)){c.width=r.width*dpr;c.height=r.height*dpr}
+  const x=c.getContext('2d'),w=c.width,h=c.height,cs=getComputedStyle(document.documentElement),col=v=>cs.getPropertyValue(v).trim();
+  x.clearRect(0,0,w,h);const p=P(),L=48*dpr,B=h-20*dpr,T=8*dpr,R=w-8*dpr;
+  const ym=mm=>B-(mm/p.depth)*(B-T);const t1=Math.max(S.t,2400),t0=t1-2400;const xm=t=>L+(t-t0)/2400*(R-L);
+  x.font=`${11*dpr}px IBM Plex Mono, monospace`;x.fillStyle=col('--muted');x.strokeStyle=col('--line');x.lineWidth=1;
+  for(let mm=0;mm<=p.depth;mm+=300){x.beginPath();x.moveTo(L,ym(mm));x.lineTo(R,ym(mm));x.stroke();x.fillText(mm,4*dpr,ym(mm)+4*dpr)}
+  for(let m=0;m<=40;m+=10){const tx=xm(t0+m*60);x.fillText('-'+(40-m)+' min',tx-18*dpr,h-4*dpr)}
+  const sp=(v,c)=>{x.setLineDash([6*dpr,4*dpr]);x.strokeStyle=col(c);x.beginPath();x.moveTo(L,ym(v));x.lineTo(R,ym(v));x.stroke();x.setLineDash([]);x.fillStyle=col(c);x.fillText(c==='--alarm'?'L003':'L002',R-34*dpr,ym(v)-4*dpr)};
+  sp(p.hi,'--alarm');sp(p.lo,'--amber');
+  if(S.hist.length>1){x.beginPath();S.hist.forEach(([t,l],i)=>i?x.lineTo(xm(t),ym(l)):x.moveTo(xm(t),ym(l)));x.strokeStyle=col('--water');x.lineWidth=2*dpr;x.stroke();
+    x.lineTo(xm(S.hist[S.hist.length-1][0]),B);x.lineTo(xm(S.hist[0][0]),B);x.closePath();x.globalAlpha=.15;x.fillStyle=col('--water');x.fill();x.globalAlpha=1;
+    const [lt,ll]=S.hist[S.hist.length-1];x.beginPath();x.arc(xm(lt),ym(ll),4*dpr,0,7);x.fillStyle=col('--water');x.fill()}
+}
+['spHi','spLo','depth'].forEach(id=>$(id).addEventListener('input',drawScale));
+let last=performance.now();
+function loop(now){let dt=Math.min(.1,(now-last)/1000);last=now;
+  if(!S.paused){const sim=dt*P().speed,n=Math.ceil(sim/0.5);for(let i=0;i<n;i++)tick(sim/n)}
+  draw(S.paused?0:dt);requestAnimationFrame(loop)}
+drawScale();log('Foso TZ20 en llenado · bomba TZ20D002 parada, brida ciega colocada');requestAnimationFrame(loop);
+</script>
+
+</body>
+</html>
